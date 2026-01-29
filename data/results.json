@@ -43,5 +43,12 @@
     "studentId": "qwf",
     "score": 0,
     "totalPoints": 3
+  },
+  {
+    "quizId": "33e0cc76-9bf2-41e9-8228-6c9906c574ab",
+    "studentName": "afa",
+    "studentId": "1434",
+    "score": 2,
+    "totalPoints": 7
   }
 ]
