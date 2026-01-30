@@ -1,62 +1,28 @@
+import { db } from "./firebase";
+import { collection, getDocs, doc, setDoc, deleteDoc, query, where, getDoc } from "firebase/firestore";
 import { Quiz } from "@/types/quiz";
 
+const COLLECTION_NAME = "quizzes";
 
-import fs from "fs";
-import path from "path";
-
-const dataDir = path.join(process.cwd(), "data");
-const quizzesFile = path.join(dataDir, "quizzes.json");
-
-// Ensure data directory exists
-if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+export async function addQuiz(quiz: Quiz) {
+    // structuredClone is used to remove undefined fields if any, as Firestore doesn't like them
+    // or just pass the object if we are sure. JSON.parse(JSON.stringify) is a safe bet for complex objects
+    const quizData = JSON.parse(JSON.stringify(quiz));
+    await setDoc(doc(db, COLLECTION_NAME, quiz.id), quizData);
 }
 
-function readQuizzes(): Quiz[] {
-    if (!fs.existsSync(quizzesFile)) {
-        return [];
-    }
-    try {
-        const fileContent = fs.readFileSync(quizzesFile, "utf-8");
-        return JSON.parse(fileContent);
-    } catch (error) {
-        console.error("Error reading quizzes file:", error);
-        return [];
-    }
+export async function getQuizzes(): Promise<Quiz[]> {
+    const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
+    return querySnapshot.docs.map((doc) => doc.data() as Quiz);
 }
 
-function writeQuizzes(quizzes: Quiz[]) {
-    try {
-        fs.writeFileSync(quizzesFile, JSON.stringify(quizzes, null, 2));
-    } catch (error) {
-        console.error("Error writing quizzes file:", error);
-    }
+export async function getQuizByCode(code: string): Promise<Quiz | undefined> {
+    const q = query(collection(db, COLLECTION_NAME), where("accessCode", "==", code));
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) return undefined;
+    return querySnapshot.docs[0].data() as Quiz;
 }
 
-// Initial load (optional, but good for caching if we wanted to keep memory sync)
-// For this implementation, we will read from disk on every request to ensure consistency across serverless fn invocations if this were deployed, 
-// though for local dev it's also safer for persistence.
-
-export function addQuiz(quiz: Quiz) {
-    const currentQuizzes = readQuizzes();
-    currentQuizzes.push(quiz);
-    writeQuizzes(currentQuizzes);
-}
-
-export function getQuizzes() {
-    return readQuizzes();
-}
-
-export function getQuizByCode(code: string) {
-    const currentQuizzes = readQuizzes();
-    return currentQuizzes.find((q) => q.accessCode === code);
-}
-
-export function deleteQuiz(id: string) {
-    let currentQuizzes = readQuizzes();
-    const initialLength = currentQuizzes.length;
-    currentQuizzes = currentQuizzes.filter((q) => q.id !== id);
-    if (currentQuizzes.length !== initialLength) {
-        writeQuizzes(currentQuizzes);
-    }
+export async function deleteQuiz(id: string) {
+    await deleteDoc(doc(db, COLLECTION_NAME, id));
 }

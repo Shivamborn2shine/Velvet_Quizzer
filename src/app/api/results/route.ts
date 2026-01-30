@@ -10,7 +10,7 @@ export async function POST(request: Request) {
         }
 
         // We pass the whole body which now includes studentId
-        addResult(body);
+        await addResult(body);
         return NextResponse.json({ success: true });
     } catch (e) {
         return NextResponse.json({ error: "Invalid request" }, { status: 500 });
@@ -25,5 +25,5 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "Missing quizId" }, { status: 400 });
     }
 
-    return NextResponse.json(getResults(quizId));
+    return NextResponse.json(await getResults(quizId));
 }

@@ -1,67 +1,96 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
-import { Trash2, Plus, Upload } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Trash2, Plus, Loader2, Upload } from "lucide-react";
+import { useRouter, useParams } from "next/navigation";
+import { Quiz } from "@/types/quiz";
 
-export default function CreateQuiz() {
+export default function EditQuiz() {
     const router = useRouter();
+    const params = useParams();
+    const [loading, setLoading] = useState(true);
+
+    // Quiz State
+    const [quizId, setQuizId] = useState("");
     const [title, setTitle] = useState("");
     const [description, setDescription] = useState("");
+    const [accessCode, setAccessCode] = useState("");
     const [questions, setQuestions] = useState<any[]>([
         { text: "", type: "text", options: [], points: 1, correctAnswer: "" }
     ]);
+
+    // Bulk Import State
     const [bulkText, setBulkText] = useState("");
     const [showBulk, setShowBulk] = useState(false);
+
+    // Load Quiz Data
+    useEffect(() => {
+        if (!params.id) return;
+
+        const fetchQuiz = async () => {
+            try {
+                const res = await fetch("/api/quizzes");
+                const data: Quiz[] = await res.json();
+                const found = data.find(q => q.id === params.id);
+
+                if (found) {
+                    setQuizId(found.id);
+                    setTitle(found.title);
+                    setDescription(found.description);
+                    setAccessCode(found.accessCode);
+                    setQuestions(found.questions || []);
+                } else {
+                    alert("Quiz not found");
+                    router.push("/admin");
+                }
+            } catch (error) {
+                console.error("Failed to load quiz", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchQuiz();
+    }, [params.id, router]);
 
     const handleBulkImport = () => {
         if (!bulkText.trim()) return;
 
         const newQuestions: any[] = [];
-        // Split by Double Newlines (assuming questions are separated by blank lines)
-        // Or regex lookahead for "N." start pattern
         const blocks = bulkText.split(/(?=\n\d+\.)|(?=\nQ\.)/g).filter(b => b.trim().length > 0);
-
-        // Fallback: if user just pasted one block without number, try to parse it as one
         const chunks = blocks.length > 0 ? blocks : [bulkText];
 
         chunks.forEach(chunk => {
             const lines = chunk.trim().split('\n').map(l => l.trim()).filter(l => l);
             if (lines.length === 0) return;
 
-            // 1. Extract Question Text (First line(s) before options)
             let questionText = "";
             let options: string[] = [];
             let correctAnswer = "";
             let readingOptions = false;
 
             const optionRegex = /^\s*([A-Z])[\.)]\s*/i;
-            const correctRegex = /^\s*(?:✅\s*)?(?:Correct Answer|Correct|Ans|Answer|Key)[:\s-]*([A-Z])/i; // Updated regex
+            const correctRegex = /^\s*(?:✅\s*)?(?:Correct Answer|Correct|Ans|Answer|Key)[:\s-]*([A-Z])/i;
 
             for (let line of lines) {
                 if (correctRegex.test(line)) {
-                    // It's the answer line
                     const match = line.match(correctRegex);
                     if (match) {
-                        const letter = match[1].toUpperCase(); // e.g., 'B'
-                        const index = letter.charCodeAt(0) - 65; // A=0, B=1...
+                        const letter = match[1].toUpperCase();
+                        const index = letter.charCodeAt(0) - 65;
                         if (index >= 0 && index < options.length) {
                             correctAnswer = options[index];
                         }
                     }
                 } else if (optionRegex.test(line)) {
-                    // It's an option line like "A. Phishing"
                     readingOptions = true;
-                    // strip "A. "
                     const optText = line.replace(optionRegex, '').trim();
                     options.push(optText);
                 } else {
-                    // It's part of the question text
                     if (!readingOptions && !line.startsWith("✅")) {
-                        // Remove leading numbering like "3."
                         const cleanLine = line.replace(/^\d+\.\s*/, '');
                         questionText += (questionText ? " " : "") + cleanLine;
                     }
@@ -80,43 +109,24 @@ export default function CreateQuiz() {
         });
 
         if (newQuestions.length > 0) {
-            // Remove the empty default question if it's untouched
-            if (questions.length === 1 && !questions[0].text) {
-                setQuestions(newQuestions);
-            } else {
-                setQuestions([...questions, ...newQuestions]);
-            }
+            setQuestions([...questions, ...newQuestions]);
             setBulkText("");
             setShowBulk(false);
             alert(`Imported ${newQuestions.length} questions!`);
         } else {
-            alert("Could not parse any questions. Check format.");
+            alert("Could not parse any questions.");
         }
     };
 
-    // AI/Heuristic Formatter to normalize messy inputs
     const magicFormat = () => {
         let text = bulkText;
         if (!text) return;
-
-        // 0. Normalize Question Prefixes: "Q1.", "Q1)", "Q.1." -> "1."
         text = text.replace(/(?:^|\n)Q\.?\s?(\d+)[:.)]/gim, "\n$1.");
         text = text.replace(/(?:^|\n)Q(\d+)\./gim, "\n$1.");
-
-        // 1. Normalize Options: "a) ", "(a) ", "A) " -> "A. "
-        text = text.replace(/(?:^|\n)(?:\(?([a-d])[).]\s?)/gim, (match, p1) => {
-            return `\n${p1.toUpperCase()}. `;
-        });
-
-        // 2. Normalize Answer Keys: "Ans: B", "Answer: B" -> "✅ Correct Answer: B"
+        text = text.replace(/(?:^|\n)(?:\(?([a-d])[).]\s?)/gim, (match, p1) => `\n${p1.toUpperCase()}. `);
         text = text.replace(/(?:^|\n)\s*(?:Ans|Answer|Correct Option|Correct|Key)[:\s-]*([A-D])(?:$|\n)/gim, "\n✅ Correct Answer: $1\n");
-
-        // 3. Ensure double newlines between questions
         text = text.replace(/(\n✅ Correct Answer: [A-D])\s*(\d+\.)/g, "$1\n\n$2");
-
-        // 4. Clean up excessive newlines
         text = text.replace(/\n{3,}/g, "\n\n");
-
         setBulkText(text);
         alert("✨ Text normalized! Please review then click 'Process'.");
     };
@@ -132,8 +142,7 @@ export default function CreateQuiz() {
     };
 
     const removeQuestion = (index: number) => {
-        const newQuestions = questions.filter((_, i) => i !== index);
-        setQuestions(newQuestions);
+        setQuestions(questions.filter((_, i) => i !== index));
     };
 
     const handleSubmit = async () => {
@@ -143,21 +152,30 @@ export default function CreateQuiz() {
         }
 
         const res = await fetch("/api/quizzes", {
-            method: "POST",
+            method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, description, questions }),
+            body: JSON.stringify({
+                id: quizId,
+                title,
+                description,
+                questions,
+                accessCode // preserve existing code
+            }),
         });
 
         if (res.ok) {
+            alert("Quiz updated successfully!");
             router.push("/admin");
         } else {
-            alert("Failed to create quiz");
+            alert("Failed to update quiz");
         }
     };
 
+    if (loading) return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin" /></div>;
+
     return (
         <div className="max-w-3xl mx-auto p-8 space-y-8">
-            <h1 className="text-3xl font-bold">Create New Quiz</h1>
+            <h1 className="text-3xl font-bold">Edit Quiz</h1>
 
             <div className="space-y-4">
                 <div>
@@ -167,6 +185,10 @@ export default function CreateQuiz() {
                 <div>
                     <label className="block text-sm font-medium mb-1">Description</label>
                     <Input value={description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDescription(e.target.value)} placeholder="Short description..." />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium mb-1">Access Code (Read-only)</label>
+                    <Input value={accessCode} disabled className="bg-muted" />
                 </div>
             </div>
 
@@ -183,16 +205,9 @@ export default function CreateQuiz() {
                     <Card className="mb-6 border-dashed border-2 bg-muted/50">
                         <CardContent className="pt-6 space-y-4">
                             <div className="space-y-2">
-                                <label className="text-sm font-medium">Paste Questions (Format: "1. Question... A. Option... ✅ Correct Answer: Letter")</label>
+                                <label className="text-sm font-medium">Paste Questions</label>
                                 <textarea
                                     className="w-full min-h-[200px] p-3 rounded-md border text-sm font-mono"
-                                    placeholder={`3. You are a security analyst...
-Which technique would attackers use?
-
-A. Phishing
-B. Google Dorking
-C. Brute force attack
-✅ Correct Answer: B`}
                                     value={bulkText}
                                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setBulkText(e.target.value)}
                                 />
@@ -225,7 +240,7 @@ C. Brute force attack
                                         <Input
                                             value={q.image || ""}
                                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateQuestion(index, "image", e.target.value)}
-                                            placeholder="Image URL (or upload ->)"
+                                            placeholder="Image URL"
                                         />
                                         <div className="relative">
                                             <input
@@ -236,24 +251,13 @@ C. Brute force attack
                                                 onChange={async (e: React.ChangeEvent<HTMLInputElement>) => {
                                                     const file = e.target.files?.[0];
                                                     if (!file) return;
-
                                                     const formData = new FormData();
                                                     formData.append("file", file);
-
                                                     try {
-                                                        const res = await fetch("/api/upload", {
-                                                            method: "POST",
-                                                            body: formData,
-                                                        });
+                                                        const res = await fetch("/api/upload", { method: "POST", body: formData });
                                                         const data = await res.json();
-                                                        if (data.url) {
-                                                            updateQuestion(index, "image", data.url);
-                                                        } else {
-                                                            alert("Upload failed");
-                                                        }
-                                                    } catch (err) {
-                                                        alert("Error uploading image");
-                                                    }
+                                                        if (data.url) updateQuestion(index, "image", data.url);
+                                                    } catch (err) { alert("Error uploading image"); }
                                                 }}
                                             />
                                             <Button
@@ -261,7 +265,6 @@ C. Brute force attack
                                                 size="icon"
                                                 onClick={() => document.getElementById(`file-${index}`)?.click()}
                                                 type="button"
-                                                title="Upload Image"
                                             >
                                                 <Upload className="h-4 w-4" />
                                             </Button>
@@ -276,7 +279,7 @@ C. Brute force attack
                                     <Input
                                         value={q.correctAnswer}
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateQuestion(index, "correctAnswer", e.target.value)}
-                                        placeholder="Correct Answer (Exact Match)"
+                                        placeholder="Correct Answer"
                                         className={q.type === "multiple-choice" ? "hidden" : ""}
                                     />
                                 </div>
@@ -302,10 +305,7 @@ C. Brute force attack
                                 <div className="pl-4 space-y-2 border-l-2">
                                     <p className="text-xs font-semibold text-muted-foreground">Options</p>
                                     {q.options.map((opt: string, optIndex: number) => (
-                                        <div
-                                            key={optIndex}
-                                            className={`flex items-center gap-2 p-2 rounded transition-colors ${q.correctAnswer === opt && opt !== "" ? "bg-green-100 dark:bg-green-900/30 border border-green-500" : ""}`}
-                                        >
+                                        <div key={optIndex} className={`flex items-center gap-2 p-2 rounded ${q.correctAnswer === opt && opt !== "" ? "bg-green-100 dark:bg-green-900/30 border border-green-500" : ""}`}>
                                             <input
                                                 type="radio"
                                                 name={`correct-${index}`}
@@ -320,17 +320,14 @@ C. Brute force attack
                                                     const newOptions = [...q.options];
                                                     newOptions[optIndex] = e.target.value;
                                                     updateQuestion(index, "options", newOptions);
-                                                    // Auto-update correct answer if the option text changes and it was selected
-                                                    if (q.correctAnswer === opt) {
-                                                        updateQuestion(index, "correctAnswer", e.target.value);
-                                                    }
+                                                    if (q.correctAnswer === opt) updateQuestion(index, "correctAnswer", e.target.value);
                                                 }}
                                                 placeholder={`Option ${optIndex + 1}`}
                                             />
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                className="h-8 w-8"
                                                 onClick={() => {
                                                     const newOptions = q.options.filter((_: string, i: number) => i !== optIndex);
                                                     updateQuestion(index, "options", newOptions);
@@ -362,7 +359,7 @@ C. Brute force attack
 
             <div className="flex justify-end gap-4">
                 <Button variant="ghost" onClick={() => router.push("/admin")}>Cancel</Button>
-                <Button onClick={handleSubmit}>Create Quiz</Button>
+                <Button onClick={handleSubmit}>Update Quiz</Button>
             </div>
         </div>
     );

@@ -82,9 +82,14 @@ export default function AdminDashboard() {
                                     </div>
                                 </CardContent>
                                 <CardFooter className="flex justify-between">
-                                    <Button variant="outline" size="sm" onClick={() => router.push(`/admin/quiz/${quiz.id}/results`)}>
-                                        View Leaderboard
-                                    </Button>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm" onClick={() => router.push(`/admin/quiz/${quiz.id}/results`)}>
+                                            Leaderboard
+                                        </Button>
+                                        <Button variant="secondary" size="sm" onClick={() => router.push(`/admin/edit/${quiz.id}`)}>
+                                            Edit
+                                        </Button>
+                                    </div>
                                     <Button
                                         variant="destructive"
                                         size="sm"

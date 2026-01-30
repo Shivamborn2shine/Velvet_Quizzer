@@ -13,6 +13,7 @@ export interface Quiz {
     description: string;
     accessCode: string;
     questions: Question[];
+    active?: boolean;
 }
 
 export interface QuizResult {
