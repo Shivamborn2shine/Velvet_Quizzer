@@ -6,13 +6,13 @@ import { getAnalytics, isSupported } from "firebase/analytics";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+    apiKey: "AIzaSyC8kBMOss0ZxkVUmykxUm98grFR6W2FIlA",
+    authDomain: "velvetquizzer.firebaseapp.com",
+    projectId: "velvetquizzer",
+    storageBucket: "velvetquizzer.firebasestorage.app",
+    messagingSenderId: "908968180650",
+    appId: "1:908968180650:web:ec787f8f627b0b3f3e09d3",
+    measurementId: "G-JD7MDC0YLN"
 };
 
 // Initialize Firebase
